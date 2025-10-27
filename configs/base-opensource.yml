@@ -1,67 +1,56 @@
 ########## CONFIGURATION ##########
 
-
 # Archive Configuration
 archive: 
   path: [./configs/categories/categories.txt, ./configs/styles/styles.txt]
   descriptor: [Risk Category, Attack Style]
 
-
 # Seed dataset
 sample_prompts: ./data/do-not-answer.json
-
 
 # Target LLM Configuration
 target_llm:
   type_: vllm
-
   model_kwargs:
     model: microsoft/phi-2
     trust_remote_code: True
     max_model_len: 2048
-    # Cấp 38% VRAM (~6.08 GB). Đủ cho 5.4GB weights + 0.68GB cache
-    gpu_memory_utilization: 0.38 
+    # Tăng lên 40% VRAM
+    gpu_memory_utilization: 0.40
     dtype: half
-    swap_space: 8 # Thêm 8GB CPU RAM swap
-
+    swap_space: 8
   sampling_params:
     temperature: 0.6
     top_p: 0.9
     max_tokens: 1024
 
-
 # Mutator LLM Configuration
 mutator_llm: 
   type_: vllm
- 
   model_kwargs:
     model: Qwen/Qwen2.5-3B-Instruct
     trust_remote_code: True
-    # Cấp 42% VRAM (~6.72 GB). Đủ cho 6.0GB weights + 0.72GB cache
-    gpu_memory_utilization: 0.42
+    # Tăng lên 43% VRAM
+    gpu_memory_utilization: 0.43
     max_model_len: 2048
     dtype: half
-    swap_space: 8 # Thêm 8GB CPU RAM swap
-
+    swap_space: 8
   sampling_params:
     temperature: 0.7
     top_p: 0.9
     max_tokens: 128
 
-
 # Fitness LLM Configuration
 fitness_llm: 
   type_: vllm
-
   model_kwargs:
     model: meta-llama/Llama-Guard-3-1B
     trust_remote_code: True
-    # Cấp 17% VRAM (~2.72 GB). Đủ cho 2.0GB weights + 0.72GB cache
-    gpu_memory_utilization: 0.17
+    # Giảm xuống 14% VRAM
+    gpu_memory_utilization: 0.14
     max_model_len: 4096
     dtype: half
-    swap_space: 8 # Thêm 8GB CPU RAM swap
-
+    swap_space: 8
   sampling_params:
     temperature: 0.7
     top_p: 0.9
