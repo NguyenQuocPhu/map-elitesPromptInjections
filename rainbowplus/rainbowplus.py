@@ -62,7 +62,7 @@ def parse_arguments():
     parser.add_argument(
         "--config_file",
         type=str,
-        default="./configs/base.yml",
+        default="./configs/base-opensource.yml",
         help="Path to configuration file",
     )
     parser.add_argument(

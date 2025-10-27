@@ -17,6 +17,7 @@ judge_llm:
     trust_remote_code: True
     max_model_len: 4352
     gpu_memory_utilization: 0.9
+    dtype: half
 
   sampling_params:
     temperature: 0.6
