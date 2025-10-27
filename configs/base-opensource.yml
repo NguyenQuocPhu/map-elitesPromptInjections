@@ -12,7 +12,7 @@ sample_prompts: ./data/do-not-answer.json
 target_llm:
   type_: vllm
   model_kwargs:
-    model: microsoft/phi-2
+    model: Qwen/Qwen1.5-1.8B-Chat
     trust_remote_code: True
     max_model_len: 2048
     # Tăng lên 40% VRAM
