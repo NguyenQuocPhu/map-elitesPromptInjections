@@ -252,7 +252,7 @@ if __name__ == "__main__":
     config = ConfigurationLoader.load(args.config_file)
 
     # Update configuration based on command-line arguments
-    config.target_llm.model_kwargs["model"] = args.target_llm
+    #config.target_llm.model_kwargs["model"] = args.target_llm
     config.sample_prompts = args.dataset
 
     # Initialize language models and scoring functions
