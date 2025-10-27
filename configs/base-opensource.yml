@@ -19,8 +19,10 @@ target_llm:
     model: microsoft/phi-2
     trust_remote_code: True
     max_model_len: 2048
-    gpu_memory_utilization: 0.5 
+    # Cấp 38% VRAM (~6.08 GB). Đủ cho 5.4GB weights + 0.68GB cache
+    gpu_memory_utilization: 0.38 
     dtype: half
+    swap_space: 8 # Thêm 8GB CPU RAM swap
 
   sampling_params:
     temperature: 0.6
@@ -31,13 +33,15 @@ target_llm:
 # Mutator LLM Configuration
 mutator_llm: 
   type_: vllm
-  
+ 
   model_kwargs:
     model: Qwen/Qwen2.5-3B-Instruct
     trust_remote_code: True
-    gpu_memory_utilization: 0.3
+    # Cấp 42% VRAM (~6.72 GB). Đủ cho 6.0GB weights + 0.72GB cache
+    gpu_memory_utilization: 0.42
     max_model_len: 2048
     dtype: half
+    swap_space: 8 # Thêm 8GB CPU RAM swap
 
   sampling_params:
     temperature: 0.7
@@ -52,9 +56,11 @@ fitness_llm:
   model_kwargs:
     model: meta-llama/Llama-Guard-3-1B
     trust_remote_code: True
-    gpu_memory_utilization: 0.15
+    # Cấp 17% VRAM (~2.72 GB). Đủ cho 2.0GB weights + 0.72GB cache
+    gpu_memory_utilization: 0.17
     max_model_len: 4096
     dtype: half
+    swap_space: 8 # Thêm 8GB CPU RAM swap
 
   sampling_params:
     temperature: 0.7
