@@ -16,9 +16,10 @@ target_llm:
     trust_remote_code: True
     max_model_len: 2048
     # Tăng lên 40% VRAM
-    gpu_memory_utilization: 0.40
+    gpu_memory_utilization: 0.9
     dtype: half
     swap_space: 8
+    device: "0"
   sampling_params:
     temperature: 0.6
     top_p: 0.9
@@ -35,6 +36,7 @@ mutator_llm:
     max_model_len: 2048
     dtype: half
     swap_space: 8
+    device: "1"
   sampling_params:
     temperature: 0.7
     top_p: 0.9
@@ -51,6 +53,7 @@ fitness_llm:
     max_model_len: 4096
     dtype: half
     swap_space: 8
+    device: "0"
   sampling_params:
     temperature: 0.7
     top_p: 0.9
