@@ -16,7 +16,7 @@ target_llm:
   type_: vllm
 
   model_kwargs:
-    model: Qwen/Qwen2.5-7B-Instruct
+    model: microsoft/phi-2
     trust_remote_code: True
     max_model_len: 2048
     gpu_memory_utilization: 0.5 
