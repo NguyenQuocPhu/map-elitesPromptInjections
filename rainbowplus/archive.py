@@ -1,395 +1,248 @@
 from typing import TypeVar, Generic, List, Dict, Tuple, Optional, Union, Any
+from collections.abc import Hashable
 import json
 import ast
 import numpy as np
-
-# --- Bổ sung cho hàm visualize (Optional Dependencies) ---
-try:
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    import pandas as pd
-    _VIS_LIBS_INSTALLED = True
-except ImportError:
-    _VIS_LIBS_INSTALLED = False
-# ----------------------------------------------------
-
 
 T = TypeVar("T")
 
 
 class Archive(Generic[T]):
     """
-    Một lớp archive linh hoạt để lưu trữ và thao tác với các bộ sưu tập dữ liệu,
-    đặc biệt hữu ích cho các thuật toán như Map-Elites.
+    A flexible archive class for storing and manipulating collections of data.
 
-    Lớp này hỗ trợ các thao tác như thêm, cập nhật,
-    truy xuất và phân tích các bộ sưu tập dữ liệu.
+    The class supports various operations like adding, updating,
+    retrieving, and analyzing collections of data.
     """
 
     def __init__(self, name: str):
         """
-        Khởi tạo một instance Archive.
+        Initialize an Archive instance.
 
         Args:
-            name (str): Tên của archive
+            name (str): Name of the archive
         """
         self.name = name
-        # THAY ĐỔI: Key giờ là Tuple[float, ...]
-        self._archive: Dict[Tuple[float, ...], List[T]] = {}
+        self._archive: Dict[Tuple[Hashable, ...], List[T]] = {}
 
-    def add(self, key: Tuple[float, ...], value: List[T]) -> None:
+    def add(self, key: Tuple[Hashable, ...], value: List[T]) -> None:
         """
-        Thêm một cặp key-value mới vào archive.
+        Add a new key-value pair to the archive.
 
         Args:
-            key (Tuple[float, ...]): Key duy nhất cho mục nhập, phải là tuple của các số.
-            value (List[T]): Danh sách các giá trị cần lưu trữ
+            key (Tuple[Hashable, ...]): Unique key for the entry
+            value (List[T]): List of values to store
 
         Raises:
-            TypeError: Nếu key không phải là tuple hoặc chứa phần tử không phải số.
+            TypeError: If key is not a tuple
         """
         if not isinstance(key, tuple):
-            raise TypeError("Key phải là một tuple")
-        
-        # BỔ SUNG: Kiểm tra các phần tử của key phải là số
-        if not all(isinstance(k, (int, float)) for k in key):
-            raise TypeError("Tất cả các phần tử trong key tuple phải là số (int hoặc float)")
-
+            raise TypeError("Key must be a tuple")
         if not isinstance(value, list):
             value = list(value)
         self._archive[key] = value
 
-    def update(self, key: Tuple[float, ...], value: List[T]) -> None:
+    def update(self, key: Tuple[Hashable, ...], value: List[T]) -> None:
         """
-        Cập nhật giá trị cho một key đã tồn tại.
+        Update the value for an existing key.
 
         Args:
-            key (Tuple[float, ...]): Key để cập nhật
-            value (List[T]): Giá trị mới để thiết lập
+            key (Tuple[Hashable, ...]): Key to update
+            value (List[T]): New values to set
 
         Raises:
-            KeyError: Nếu key không tồn tại
+            KeyError: If the key does not exist
         """
         if key not in self._archive:
-            raise KeyError(f"Key {key} không tồn tại trong archive")
+            raise KeyError(f"Key {key} does not exist in the archive")
 
         if not isinstance(value, list):
             value = list(value)
         self._archive[key] = value
 
-    def delete(self, key: Tuple[float, ...]) -> None:
+    def delete(self, key: Tuple[Hashable, ...]) -> None:
         """
-        Xóa một cặp key-value khỏi archive.
+        Delete a key-value pair from the archive.
 
         Args:
-            key (Tuple[float, ...]): Key để xóa
+            key (Tuple[Hashable, ...]): Key to delete
         """
         self._archive.pop(key, None)
 
     def flatten_values(self) -> List[T]:
         """
-        Trả về một danh sách phẳng của tất cả các giá trị trong archive.
+        Return a flattened list of all values in the archive.
 
         Returns:
-            List[T]: Danh sách phẳng của tất cả các giá trị
+            List[T]: Flattened list of all values
         """
         return [item for sublist in self._archive.values() for item in sublist]
 
-    def get(self, key: Tuple[float, ...]) -> Optional[List[T]]:
+    def get(self, key: Tuple[Hashable, ...]) -> Optional[List[T]]:
         """
-        Truy xuất giá trị cho một key nhất định.
+        Retrieve the value for a given key.
 
         Args:
-            key (Tuple[float, ...]): Key để truy xuất
+            key (Tuple[Hashable, ...]): Key to retrieve
 
         Returns:
-            Optional[List[T]]: Các giá trị liên quan đến key, hoặc None
+            Optional[List[T]]: Values associated with the key, or None
         """
         return self._archive.get(key)
 
-    def keys(self) -> List[Tuple[float, ...]]:
+    def keys(self) -> List[Tuple[Hashable, ...]]:
         """
-        Trả về một danh sách tất cả các key trong archive.
+        Return a list of all keys in the archive.
 
         Returns:
-            List[Tuple[float, ...]]: Danh sách các key
+            List[Tuple[Hashable, ...]]: List of keys
         """
         return list(self._archive.keys())
 
-    def exists(self, key: Tuple[float, ...]) -> bool:
+    def exists(self, key: Tuple[Hashable, ...]) -> bool:
         """
-        Kiểm tra xem một key có tồn tại trong archive hay không.
+        Check if a key exists in the archive.
 
         Args:
-            key (Tuple[float, ...]): Key để kiểm tra
+            key (Tuple[Hashable, ...]): Key to check
 
         Returns:
-            bool: Key có tồn tại hay không
+            bool: Whether the key exists
         """
         return key in self._archive
 
-    def extend(self, key: Tuple[float, ...], new_values: List[T]) -> None:
+    def extend(self, key: Tuple[Hashable, ...], new_values: List[T]) -> None:
         """
-        Mở rộng danh sách giá trị cho một key đã tồn tại.
+        Extend the value list for an existing key.
 
         Args:
-            key (Tuple[float, ...]): Key để mở rộng
-            new_values (List[T]): Các giá trị cần thêm
+            key (Tuple[Hashable, ...]): Key to extend
+            new_values (List[T]): Values to add
 
         Raises:
-            KeyError: Nếu key không tồn tại
+            KeyError: If the key does not exist
         """
         if key not in self._archive:
-            raise KeyError(f"Key {key} không tồn tại trong archive")
+            raise KeyError(f"Key {key} does not exist in the archive")
         self._archive[key].extend(new_values)
 
     def values_are_numeric(self) -> bool:
         """
-        Kiểm tra xem tất cả các giá trị trong archive có phải là số hay không.
+        Check if all values in the archive are numeric.
 
         Returns:
-            bool: Tất cả các giá trị có phải là số hay không
+            bool: Whether all values are numeric
         """
-        flat_values = self.flatten_values()
-        if not flat_values:
-            return True  # Archive rỗng được coi là "numeric"
-        return all(isinstance(v, (int, float)) for v in flat_values)
+        return all(isinstance(v, (int, float)) for v in self.flatten_values())
 
-    def len_elements(self) -> Dict[Tuple[float, ...], int]:
+    def len_elements(self) -> Dict[Tuple[Hashable, ...], int]:
         """
-        Trả về một dictionary về độ dài của các key.
+        Return a dictionary of key lengths.
 
         Returns:
-            Dict[Tuple[float, ...], int]: Độ dài của danh sách giá trị của mỗi key
+            Dict[Tuple[Hashable, ...], int]: Length of each key's value list
         """
         return {k: len(v) for k, v in self._archive.items()}
 
-    def median_elements(self) -> Dict[Tuple[float, ...], float]:
+    def median_elements(self) -> Dict[Tuple[Hashable, ...], float]:
         """
-        Tính giá trị trung vị cho các giá trị số của mỗi key.
+        Calculate the median for each key's numeric values.
 
         Returns:
-            Dict[Tuple[float, ...], float]: Trung vị của các giá trị của mỗi key
+            Dict[Tuple[Hashable, ...], float]: Median of each key's values
 
         Raises:
-            ValueError: Nếu các giá trị không phải là số
+            ValueError: If values are not numeric
         """
         if not self.values_are_numeric():
-            raise ValueError("Các giá trị trong archive phải là số")
+            raise ValueError("Values in the archive must be numeric")
 
-        return {k: float(np.median(v)) for k, v in self._archive.items() if v}
+        return {k: float(np.median(v)) for k, v in self._archive.items()}
 
-    def idx_median_elements(self) -> Dict[Tuple[float, ...], int]:
+    def idx_median_elements(self) -> Dict[Tuple[Hashable, ...], int]:
         """
-        Tìm chỉ số của giá trị trung vị cho các giá trị số của mỗi key.
+        Find the index of the median for each key's numeric values.
 
         Returns:
-            Dict[Tuple[float, ...], int]: Chỉ số của trung vị cho mỗi key
+            Dict[Tuple[Hashable, ...], int]: Index of median for each key
 
         Raises:
-            ValueError: Nếu các giá trị không phải là số
+            ValueError: If values are not numeric
         """
         if not self.values_are_numeric():
-            raise ValueError("Các giá trị trong archive phải là số")
+            raise ValueError("Values in the archive must be numeric")
 
-        return {k: int(np.argsort(v)[len(v) // 2]) for k, v in self._archive.items() if v}
+        return {k: int(np.argsort(v)[len(v) // 2]) for k, v in self._archive.items()}
 
-    def idx_max_elements(self, seed: int = 0) -> Dict[Tuple[float, ...], int]:
+    def idx_max_elements(self, seed: int = 0) -> Dict[Tuple[Hashable, ...], int]:
         """
-        Tìm chỉ số của giá trị lớn nhất cho mỗi key, với việc xử lý ngẫu nhiên khi có nhiều giá trị max.
+        Find the index of max values for each key, with random tie-breaking.
 
         Args:
-            seed (int, optional): Hạt giống ngẫu nhiên. Mặc định là 0.
+            seed (int, optional): Random seed for tie-breaking. Defaults to 0.
 
         Returns:
-            Dict[Tuple[float, ...], int]: Chỉ số của max cho mỗi key
+            Dict[Tuple[Hashable, ...], int]: Index of max for each key
 
         Raises:
-            ValueError: Nếu các giá trị không phải là số
+            ValueError: If values are not numeric
         """
         if not self.values_are_numeric():
-            raise ValueError("Các giá trị trong archive phải là số")
+            raise ValueError("Values in the archive must be numeric")
 
         np.random.seed(seed)
-        result = {}
-        for k, v in self._archive.items():
-            if v: # Chỉ xử lý nếu danh sách không rỗng
-                max_val = np.max(v)
-                indices = np.where(np.array(v) == max_val)[0]
-                result[k] = int(np.random.choice(indices))
-        return result
+        return {
+            k: int(np.random.choice(np.where(v == np.max(v))[0]))
+            for k, v in self._archive.items()
+        }
 
     def subtract(self, archive_instance: "Archive[T]") -> "Archive[T]":
         """
-        Trừ một archive khác, giữ lại các phần tử từ n đến cuối.
+        Subtract another archive, keeping elements from n to end.
 
         Args:
-            archive_instance (Archive[T]): Archive để trừ
+            archive_instance (Archive[T]): Archive to subtract
 
         Returns:
-            Archive[T]: Archive kết quả sau khi trừ
+            Archive[T]: Resulting archive after subtraction
         """
         result = Archive[T](self.name)
         for key, value in self._archive.items():
-            other_value = archive_instance.get(key)
-            if other_value:
-                result.add(key, value[len(other_value) :])
+            if archive_instance.exists(key):
+                result.add(key, value[len(archive_instance.get(key)) :])
             else:
                 result.add(key, value)
 
-        # Xóa các key rỗng
+        # Remove empty keys
         result._archive = {k: v for k, v in result._archive.items() if v}
 
         return result
 
     def save(self, filepath: str) -> None:
         """
-        Lưu archive vào file JSON. (Không cần thay đổi)
+        Save the archive to a JSON file.
 
         Args:
-            filepath (str): Đường dẫn để lưu file JSON
+            filepath (str): Path to save the JSON file
         """
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump({str(k): v for k, v in self._archive.items()}, f, indent=2)
 
     def load(self, filepath: str) -> None:
         """
-        Tải archive từ file JSON. (Không cần thay đổi)
+        Load the archive from a JSON file.
 
         Args:
-            filepath (str): Đường dẫn đến file JSON
+            filepath (str): Path to the JSON file
         """
         with open(filepath, "r", encoding="utf-8") as f:
             self._archive = {ast.literal_eval(k): v for k, v in json.load(f).items()}
 
     def load_from_dict(self, data: Dict[str, List[T]]) -> None:
         """
-        Tải archive từ một dictionary. (Không cần thay đổi)
+        Load the archive from a dictionary.
 
         Args:
-            data (Dict[str, List[T]]): Dictionary để tải
+            data (Dict[str, List[T]]): Dictionary to load from
         """
         self._archive = {ast.literal_eval(k): v for k, v in data.items()}
-
-    # --- HÀM MỚI ---
-    def visualize(
-        self,
-        metric: str = "max",
-        title: Optional[str] = None,
-        xlabel: Optional[str] = "Feature 1",
-        ylabel: Optional[str] = "Feature 2",
-        cmap: str = "viridis",
-        ax: Optional["plt.Axes"] = None,
-        **heatmap_kwargs,
-    ) -> Optional["plt.Axes"]:
-        """
-        Trực quan hóa archive dưới dạng bản đồ nhiệt (heatmap).
-        Hàm này chỉ hỗ trợ archive 2D (key là tuple 2 phần tử).
-
-        Yêu cầu các thư viện: matplotlib, seaborn, pandas.
-
-        Args:
-            metric (str, optional): 
-                Số liệu để tô màu các ô.
-                - 'max': Giá trị lớn nhất trong ô (mặc định)
-                - 'median': Giá trị trung vị trong ô
-                - 'count': Số lượng phần tử trong ô
-            title (Optional[str], optional): Tiêu đề của biểu đồ.
-            xlabel (Optional[str], optional): Nhãn trục X.
-            ylabel (Optional[str], optional): Nhãn trục Y.
-            cmap (str, optional): Colormap của heatmap.
-            ax (Optional[plt.Axes], optional): Một trục matplotlib có sẵn để vẽ.
-            **heatmap_kwargs: Các tham số khác để truyền cho seaborn.heatmap (ví dụ: annot=True).
-
-        Returns:
-            Optional[plt.Axes]: Trục matplotlib đã vẽ, hoặc None nếu archive rỗng.
-
-        Raises:
-            ImportError: Nếu thiếu các thư viện bắt buộc.
-            ValueError: Nếu archive không phải 2D hoặc metric không hợp lệ.
-        """
-        if not _VIS_LIBS_INSTALLED:
-            raise ImportError(
-                "Các thư viện tùy chọn matplotlib, seaborn, và pandas là bắt buộc "
-                "cho việc trực quan hóa. Vui lòng cài đặt chúng: "
-                "pip install matplotlib seaborn pandas"
-            )
-
-        if not self._archive:
-            print("Archive rỗng. Không có gì để trực quan hóa.")
-            return None
-
-        all_keys = self.keys()
-        if len(all_keys[0]) != 2:
-            raise ValueError(
-                "Trực quan hóa chỉ hỗ trợ archive 2D "
-                f"(key phải là tuple 2 phần tử, tìm thấy: {len(all_keys[0])} phần tử)"
-            )
-
-        if metric in ("max", "median") and not self.values_are_numeric():
-            raise ValueError(f"Metric '{metric}' yêu cầu tất cả giá trị trong archive phải là số.")
-
-        # Chuẩn bị dữ liệu cho DataFrame
-        data = []
-        for key, values in self._archive.items():
-            if not values:  # Bỏ qua các ô rỗng
-                continue
-                
-            x, y = key
-            score = 0.0
-            if metric == "max":
-                score = np.max(values)
-            elif metric == "median":
-                score = np.median(values)
-            elif metric == "count":
-                score = len(values)
-            else:
-                raise ValueError(f"Metric không xác định: '{metric}'. Chỉ hỗ trợ 'max', 'median', 'count'.")
-            
-            data.append({"x": x, "y": y, "score": score})
-        
-        if not data:
-            print("Archive không có dữ liệu (có thể tất cả các ô đều rỗng). Không có gì để trực quan hóa.")
-            return None
-
-        df = pd.DataFrame(data)
-
-        # Pivot dữ liệu thành lưới 2D
-        try:
-            grid_data = df.pivot(index="y", columns="x", values="score")
-        except Exception as e:
-            print(f"Lỗi khi pivot dữ liệu: {e}")
-            print("Điều này có thể xảy ra nếu các key (tọa độ) không tạo thành một lưới hợp lệ.")
-            return None
-
-        # Sắp xếp index (trục y) giảm dần để giá trị Y thấp ở dưới cùng
-        grid_data = grid_data.sort_index(ascending=False)
-        
-        # Sắp xếp cột (trục x) tăng dần
-        grid_data = grid_data.sort_index(axis=1, ascending=True)
-
-
-        # Vẽ
-        if ax is None:
-            fig, ax = plt.subplots(figsize=(10, 8))
-
-        if title is None:
-            title = f'Archive "{self.name}" - Metric: {metric.capitalize()}'
-            
-        # Đặt các giá trị mặc định cho heatmap_kwargs nếu chưa có
-        heatmap_kwargs.setdefault("annot", False) # Không hiển thị số trên ô
-        heatmap_kwargs.setdefault("fmt", ".2f")
-
-        sns.heatmap(
-            grid_data,
-            cmap=cmap,
-            ax=ax,
-            cbar_label=f"Score ({metric.capitalize()})",
-            **heatmap_kwargs
-        )
-
-        ax.set_title(title)
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
-
-        return ax

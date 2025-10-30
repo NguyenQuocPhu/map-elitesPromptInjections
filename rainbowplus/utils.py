@@ -60,7 +60,6 @@ def load_json(
 
     return data[field][:sample_count]
 
-
 def save_iteration_log(
     log_dir, adv_prompts, responses, scores, iters, timestamp, iteration=-1
 ):

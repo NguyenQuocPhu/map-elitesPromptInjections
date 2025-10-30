@@ -5,8 +5,8 @@ import json
 import time
 import logging
 from pathlib import Path
-
-
+from datasets import load_dataset
+from rainbowplus.attack_memory import AttackMemory
 from rainbowplus.scores import BleuScoreNLTK, LlamaGuard
 from rainbowplus.utils import (
     load_txt,
@@ -53,6 +53,38 @@ def parse_arguments():
         default=5,
         help="Number of prompt mutations per iteration",
     )
+    
+    parser.add_argument(
+        "--initialize_bot_memory",
+        type=str,
+        default="./data/",
+        help="Path to seed top k prompts"
+    )
+    parser.add_argument(
+        "--initialize_top_memory",
+        type=str,
+        default="./data/", #Initialize file of data for memory
+        help="Path to seed bot k prompts"
+    )
+    parser.add_argument(
+        "--size_memory",
+        type=int,
+        default=10,
+        help="Number of prompts will be save in attack memory",
+    )
+    parser.add_argument(
+        "--k_top",
+        type=int,
+        default=3,
+        help="Number of prompts will be taken under top in attack memory",
+    )
+    parser.add_argument(
+        "--k_bot",
+        type=int,
+        default=3,
+        help="Number of prompts will be taken under bot in attack memory",
+    )
+
     parser.add_argument(
         "--fitness_threshold",
         type=float,
@@ -106,9 +138,28 @@ def load_descriptors(config):
         )
     }
 
+def load_prompts_memory(data_file: str, shuffle: int, num_samples: int, seed: int = 0) -> list[dict[str, any]]:
+    data = load_dataset("json", data_files = data_file, split = "train")
+    if shuffle:
+        data = data.shuffle(seed = seed)
+    sample_count = len(data) if num_samples == -1 else min(num_samples, len(data))
+    final_list_of_dicts = data.select(range(sample_count)).to_list()
 
+    return final_list_of_dicts
+
+def template(data_list: list[dict[str, any]]) -> str:
+    """
+    Hàm này nhận vào một list các dictionary,
+    trích xuất giá trị từ key 'prompts' của mỗi dict,
+    và định dạng chúng thành một chuỗi (string) duy nhất,
+    mỗi prompt xuống dòng và bắt đầu bằng '- '.
+    """
+    
+    prompt_lines = [f"- {item['prompts']}" for item in data_list]
+    
+    return "\n".join(prompt_lines)
 def run_rainbowplus(
-    args, config, seed_prompts=[], llms=None, fitness_fn=None, similarity_fn=None
+    args, config, seed_prompts=[], seed_memory=[], llms=None, fitness_fn=None, similarity_fn=None
 ):
     """
     Main function to execute adversarial prompt generation process.
@@ -131,6 +182,20 @@ def run_rainbowplus(
     responses = Archive("responses")
     scores = Archive("scores")
     iters = Archive("iterations")
+
+    attack_memory = AttackMemory(args.num_k_top_bot, args.num_k_top_bot)    
+    top_prompts = load_prompts_memory(
+        config.archive["path_top_prompts"],
+        shuffle = args.shuffle,
+        num_samples = args.size_memory
+    )
+    bot_prompts = load_prompts_memory(
+        config.archive["path_bot_prompts"],
+        shuffle = args.shuffle,
+        num_samples = args.size_memory
+    )
+    attack_memory.add_list(top_prompts, 1)
+    attack_memory.add_list(bot_prompts, 0)
 
     # Prepare log directory
     dataset_name = Path(config.sample_prompts).stem
@@ -163,9 +228,16 @@ def run_rainbowplus(
 
         # Mutate prompts using mutator LLM
         mutator_model = config.mutator_llm.model_kwargs["model"]
+
+        failed_prompt = attack_memory.get_prompts_bot(args.num_k_top_bot)
+        succesful_prompt = attack_memory.get_prompts_top(args.num_k_top_bot)
+        failed = template(failed_prompt)
+        succesful = template(succesful_prompt)
         prompt_ = MUTATOR_PROMPT.format(
-            descriptor=descriptor_str.strip(), prompt=prompt
+            descriptor=descriptor_str.strip(), prompt=prompt, failed=failed, succesful=succesful
         )
+
+
         mutated_prompts = llms[mutator_model].batch_generate(
             [prompt_] * args.num_mutations, config.mutator_llm.sampling_params
         )
@@ -254,7 +326,7 @@ if __name__ == "__main__":
     # Update configuration based on command-line arguments
     #config.target_llm.model_kwargs["model"] = args.target_llm
     config.sample_prompts = args.dataset
-
+    config.memories = args.initialize_memory
     # Initialize language models and scoring functions
     llms = initialize_language_models(config)
     fitness_fn = LlamaGuard(config.fitness_llm.model_kwargs)

@@ -4,7 +4,9 @@
 archive: 
   path: [./configs/categories/categories.txt, ./configs/styles/styles.txt]
   descriptor: [Risk Category, Attack Style]
-
+memory:
+  path_top_prompts:
+  path_bot_prompts:
 # Seed dataset
 sample_prompts: ./data/do-not-answer.json
 
