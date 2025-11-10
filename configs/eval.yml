@@ -13,7 +13,7 @@ judge_llm:
   type_: vllm
 
   model_kwargs:
-    model: meta-llama/Llama-Guard-3-8B
+    model: meta-llama/Llama-Guard-3-1B
     trust_remote_code: True
     max_model_len: 4352
     gpu_memory_utilization: 0.9
