@@ -1,119 +1,254 @@
+
+#
+# For licensing see accompanying LICENSE file.
+# Copyright (C) 2025 Apple Inc. All Rights Reserved.
+#
+
+from typing import TypeVar, Generic, List, Dict, Tuple, Optional, Union, Any
+from collections.abc import Hashable
+import json
+import ast
 import numpy as np
-from typing import Dict  
-import random          
-from copy import deepcopy
 
-def cosine_distance_batch(X, Y):
-    """Tính khoảng cách Cosine giữa hai mảng vector."""
-    # 1 - (X . Y) / (||X|| * ||Y||)
-    X_norm = np.linalg.norm(X, axis=1, keepdims=True)
-    Y_norm = np.linalg.norm(Y, axis=1, keepdims=True)
-    
-    # Tránh chia cho 0 nếu có vector zero
-    X_norm[X_norm == 0] = 1e-12
-    Y_norm[Y_norm == 0] = 1e-12
-    
-    dot_product = X @ Y.T
-    similarity = dot_product / (X_norm @ Y_norm.T)
-    
-    # Đảm bảo similarity trong khoảng [-1, 1] do lỗi số thực
-    similarity = np.clip(similarity, -1.0, 1.0)
-    
-    return 1.0 - similarity
+T = TypeVar("T")
 
-def _compute_distance_to_centroids(b_vector, centroids):
-    """Tìm centroid gần nhất cho một vector hành vi."""
-    if len(centroids) == 0:
-        return np.inf, -1
-    
-    # b_vector cần là 2D array để tính batch
-    if b_vector.ndim == 1:
-        b_vector = b_vector.reshape(1, -1)
-        
-    distances = cosine_distance_batch(b_vector, centroids)
-    c_id = np.argmin(distances)
-    return distances[0, c_id], c_id
 
-class GrowingArchive:
-    def __init__(self, n_cells: int,  n_behavior_dim: int, fitness_threshold: float):
-        self.n_cells = n_cells
-        self.fitness_threshold = fitness_threshold
+class Archive(Generic[T]):
+    """
+    A flexible archive class for storing and manipulating collections of data.
 
-        self.centroids = np.empty((n_cells, n_behavior_dim), dtype = np.float32)
-        self.elites : Dict[int, Dict] = {}
-        self.elites_backup : Dict[int, Dict] = {}
-        self.n_centroids = 0
-        self.dmin = np.inf
-    def _compute_dmin(self):
-        if self.n_centroids < 2:
-            self.dmin = np.inf
-            return
-        active_centroids = self.centroids[:self.n_centroids]
-        distances = cosine_distance_batch(active_centroids, active_centroids)
+    The class supports various operations like adding, updating,
+    retrieving, and analyzing collections of data.
+    """
 
-        np.fill_diagonal(distances, np.inf)
-        self.dmin = np.min(distances)
+    def __init__(self, name: str):
+        """
+        Initialize an Archive instance.
 
-        self.c_id_neighbors = np.argsort(distances, axis = 1)
-        self.d_neighbors = np.array([distances[i][self.c_id_neighbors[i]] for i in range(self.n_centroids)])
-    def _set_new_elite(self, cell_id: int, evaluation: Dict, is_backup: bool = True):
-        self.elites[cell_id] = deepcopy(evaluation)
-        if is_backup:
-            self.elites_backup = deepcopy(evaluation)
-    def __apply_repair(self, pruned_cell_id: int):
-        active_centroids = self.centroids[:self.n_centroids]
-        keys_to_check = list(self.elites.keys())
-        if keys_to_check in active_centroids:
-            keys_to_check.remove(pruned_cell_id)
-        if not keys_to_check:
-            return
+        Args:
+            name (str): Name of the archive
+        """
+        self.name = name
+        self._archive: Dict[Tuple[Hashable, ...], List[T]] = {}
 
-        behaviors_to_check = np.array([self.elites[k]["behavior"]] for k in keys_to_check)
-        distances = cosine_distance_batch(behaviors_to_check, active_centroids)
-        new_cell_ids = np.argmin(distances, axis = 1)
-        for i, old_cell_id in enumerate(keys_to_check):
-            new_cell_id = new_cell_ids[i]
+    def add(self, key: Tuple[Hashable, ...], value: List[T]) -> None:
+        """
+        Add a new key-value pair to the archive.
 
-            if new_cell_id != old_cell_id:
-                self.elites[old_cell_id] = deepcopy(self.elites_backup[old_cell_id])
-    def add_evaluation(self, evaluation: Dict):
-        if evaluation["fitness"] < self.fitness_threshold:
-            return
-        b_vector = evaluation["behavior"].reshape(1, -1)
-        active_centroids = self.centroids[:self.n_centroids]
+        Args:
+            key (Tuple[Hashable, ...]): Unique key for the entry
+            value (List[T]): List of values to store
 
-        if self.n_centroids < self.n_cells:
-            new_cell_id = self.n_centroids
-            self._set_new_elites(new_cell_id, evaluation, is_backup = True)
-            self.n_centroids += 1
-            if self.n_centroids == self.n_cells:
-                self._compute_dmin()
-            return
-        
-        d_to_nearest, cell_id = _compute_distance_to_centroids(b_vector, active_centroids)
-        if d_to_nearest > self.dmin:
-            centroid_A = np.argmin(self.d_neighbors[:, 0])
-            centroid_B = self.c_id_neighbors[centroid_A, 0]
+        Raises:
+            TypeError: If key is not a tuple
+        """
+        if not isinstance(key, tuple):
+            raise TypeError("Key must be a tuple")
+        if not isinstance(value, list):
+            value = list(value)
+        self._archive[key] = value
 
-            dist_A_to_neighbor_2 = self.d_neighbors[centroid_A, 1]
-            dist_B_to_neighbor_2 = self.d_neighbors[centroid_B, 1]
+    def update(self, key: Tuple[Hashable, ...], value: List[T]) -> None:
+        """
+        Update the value for an existing key.
 
-            if dist_A_to_neighbor_2 < dist_B_to_neighbor_2:
-                pruned_cell_id = centroid_A
+        Args:
+            key (Tuple[Hashable, ...]): Key to update
+            value (List[T]): New values to set
+
+        Raises:
+            KeyError: If the key does not exist
+        """
+        if key not in self._archive:
+            raise KeyError(f"Key {key} does not exist in the archive")
+
+        if not isinstance(value, list):
+            value = list(value)
+        self._archive[key] = value
+
+    def delete(self, key: Tuple[Hashable, ...]) -> None:
+        """
+        Delete a key-value pair from the archive.
+
+        Args:
+            key (Tuple[Hashable, ...]): Key to delete
+        """
+        self._archive.pop(key, None)
+
+    def flatten_values(self) -> List[T]:
+        """
+        Return a flattened list of all values in the archive.
+
+        Returns:
+            List[T]: Flattened list of all values
+        """
+        return [item for sublist in self._archive.values() for item in sublist]
+
+    def get(self, key: Tuple[Hashable, ...]) -> Optional[List[T]]:
+        """
+        Retrieve the value for a given key.
+
+        Args:
+            key (Tuple[Hashable, ...]): Key to retrieve
+
+        Returns:
+            Optional[List[T]]: Values associated with the key, or None
+        """
+        return self._archive.get(key)
+
+    def keys(self) -> List[Tuple[Hashable, ...]]:
+        """
+        Return a list of all keys in the archive.
+
+        Returns:
+            List[Tuple[Hashable, ...]]: List of keys
+        """
+        return list(self._archive.keys())
+
+    def exists(self, key: Tuple[Hashable, ...]) -> bool:
+        """
+        Check if a key exists in the archive.
+
+        Args:
+            key (Tuple[Hashable, ...]): Key to check
+
+        Returns:
+            bool: Whether the key exists
+        """
+        return key in self._archive
+
+    def extend(self, key: Tuple[Hashable, ...], new_values: List[T]) -> None:
+        """
+        Extend the value list for an existing key.
+
+        Args:
+            key (Tuple[Hashable, ...]): Key to extend
+            new_values (List[T]): Values to add
+
+        Raises:
+            KeyError: If the key does not exist
+        """
+        if key not in self._archive:
+            raise KeyError(f"Key {key} does not exist in the archive")
+        self._archive[key].extend(new_values)
+
+    def values_are_numeric(self) -> bool:
+        """
+        Check if all values in the archive are numeric.
+
+        Returns:
+            bool: Whether all values are numeric
+        """
+        return all(isinstance(v, (int, float)) for v in self.flatten_values())
+
+    def len_elements(self) -> Dict[Tuple[Hashable, ...], int]:
+        """
+        Return a dictionary of key lengths.
+
+        Returns:
+            Dict[Tuple[Hashable, ...], int]: Length of each key's value list
+        """
+        return {k: len(v) for k, v in self._archive.items()}
+
+    def median_elements(self) -> Dict[Tuple[Hashable, ...], float]:
+        """
+        Calculate the median for each key's numeric values.
+
+        Returns:
+            Dict[Tuple[Hashable, ...], float]: Median of each key's values
+
+        Raises:
+            ValueError: If values are not numeric
+        """
+        if not self.values_are_numeric():
+            raise ValueError("Values in the archive must be numeric")
+
+        return {k: float(np.median(v)) for k, v in self._archive.items()}
+
+    def idx_median_elements(self) -> Dict[Tuple[Hashable, ...], int]:
+        """
+        Find the index of the median for each key's numeric values.
+
+        Returns:
+            Dict[Tuple[Hashable, ...], int]: Index of median for each key
+
+        Raises:
+            ValueError: If values are not numeric
+        """
+        if not self.values_are_numeric():
+            raise ValueError("Values in the archive must be numeric")
+
+        return {k: int(np.argsort(v)[len(v) // 2]) for k, v in self._archive.items()}
+
+    def idx_max_elements(self, seed: int = 0) -> Dict[Tuple[Hashable, ...], int]:
+        """
+        Find the index of max values for each key, with random tie-breaking.
+
+        Args:
+            seed (int, optional): Random seed for tie-breaking. Defaults to 0.
+
+        Returns:
+            Dict[Tuple[Hashable, ...], int]: Index of max for each key
+
+        Raises:
+            ValueError: If values are not numeric
+        """
+        if not self.values_are_numeric():
+            raise ValueError("Values in the archive must be numeric")
+
+        np.random.seed(seed)
+        return {
+            k: int(np.random.choice(np.where(v == np.max(v))[0]))
+            for k, v in self._archive.items()
+        }
+
+    def subtract(self, archive_instance: "Archive[T]") -> "Archive[T]":
+        """
+        Subtract another archive, keeping elements from n to end.
+
+        Args:
+            archive_instance (Archive[T]): Archive to subtract
+
+        Returns:
+            Archive[T]: Resulting archive after subtraction
+        """
+        result = Archive[T](self.name)
+        for key, value in self._archive.items():
+            if archive_instance.exists(key):
+                result.add(key, value[len(archive_instance.get(key)) :])
             else:
-                pruned_cell_id = centroid_B
-            self.centroids[pruned_cell_id] = b_vector
-            self._set_new_elite(pruned_cell_id, evaluation, is_backup = True)
-            
-            self._compute_dmin()
-            self.__apply_repair(pruned_cell_id)
-            return
-        
-        if evaluation["fitness"] > self.elites[cell_id]["fitness"]:
-            self._set_new_elite(cell_id, evaluation, is_backup = False)
-    def sample_parent(self):
-        if not self.elites:
-            return None
-        
-        random_key = random.choice(list(self.elites.keys()))
-        return self.elites[random_key]
+                result.add(key, value)
+
+        # Remove empty keys
+        result._archive = {k: v for k, v in result._archive.items() if v}
+
+        return result
+
+    def save(self, filepath: str) -> None:
+        """
+        Save the archive to a JSON file.
+
+        Args:
+            filepath (str): Path to save the JSON file
+        """
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump({str(k): v for k, v in self._archive.items()}, f, indent=2)
+
+    def load(self, filepath: str) -> None:
+        """
+        Load the archive from a JSON file.
+
+        Args:
+            filepath (str): Path to the JSON file
+        """
+        with open(filepath, "r", encoding="utf-8") as f:
+            self._archive = {ast.literal_eval(k): v for k, v in json.load(f).items()}
+
+    def load_from_dict(self, data: Dict[str, List[T]]) -> None:
+        """
+        Load the archive from a dictionary.
+
+        Args:
+            data (Dict[str, List[T]]): Dictionary to load from
+        """
+        self._archive = {ast.literal_eval(k): v for k, v in data.items()}
